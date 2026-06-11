@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI旅游信息工具小助手 - 您的旅行信息和工具助手</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <!-- CryptoJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#059669',
+                        secondary: '#2563EB',
+                        neutral: '#6B7280',
+                        'neutral-light': '#F3F4F6',
+                        'neutral-dark': '#1F2937',
+                        'success': '#10B981',
+                        'info': '#3B82F6',
+                        'warning': '#F59E0B',
+                        'danger': '#EF4444',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-shadow {
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            }
+            .glass-morphism {
+                @apply bg-white bg-opacity-20 backdrop-blur-lg;
+            }
+            .security-badge {
+                @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+            }
+            .security-icon {
+                @apply mr-1.5;
+            }
+            .message-bubble {
+                @apply max-w-[85%] p-4 rounded-2xl relative;
+            }
+            .user-bubble {
+                @apply bg-secondary text-white rounded-tr-none;
+            }
+            .ai-bubble {
+                @apply bg-white text-neutral-dark rounded-tl-none border border-neutral-light;
+            }
+            .message-tail {
+                @apply absolute w-0 h-0 border-solid;
+            }
+            .user-tail {
+                @apply border-t-[10px] border-r-[10px] border-t-transparent border-r-transparent top-0 right-[-10px];
+            }
+            .ai-tail {
+                @apply border-t-[10px] border-l-[10px] border-t-transparent border-l-transparent top-0 left-[-10px];
+            }
+            .typing-indicator {
+                @apply flex space-x-1.5;
+            }
+            .typing-dot {
+                @apply w-2 h-2 rounded-full bg-neutral animate-pulse;
+            }
+            .typing-dot:nth-child(2) {
+                @apply animate-pulse delay-75;
+            }
+            .typing-dot:nth-child(3) {
+                @apply animate-pulse delay-150;
+            }
+            .question-tag {
+                @apply px-3 py-1.5 bg-white hover:bg-neutral-light text-neutral-dark rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border border-neutral-light;
+            }
+            .question-tag.active {
+                @apply bg-primary text-white border-primary;
+            }
+            .question-tag.asked {
+                @apply bg-neutral-light text-neutral border-neutral-light opacity-70;
+            }
+            /* 问卷禁用状态样式 */
+            .question-disabled input[type="radio"] {
+                @apply opacity-50 cursor-not-allowed;
+            }
+            .question-disabled label {
+                @apply opacity-50 cursor-not-allowed hover:border-neutral;
+            }
+            .copy-button {
+                @apply absolute top-2 right-2 w-8 h-8 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-all duration-200;
+            }
+            .copy-button:hover {
+                @apply bg-opacity-40;
+            }
+            .copy-button.copied {
+                @apply bg-success text-white;
+            }
+            .photo-upload-area {
+                @apply border-2 border-dashed border-neutral-light rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-all duration-200;
+            }
+            .photo-upload-area.dragover {
+                @apply border-primary bg-green-50;
+            }
+            /* 自定义滚动条样式 */
+            .question-slider-container::-webkit-scrollbar {
+                width: 6px;
+            }
+            .question-slider-container::-webkit-scrollbar-track {
+                @apply bg-neutral-light bg-opacity-30 rounded-full;
+            }
+            .question-slider-container::-webkit-scrollbar-thumb {
+                @apply bg-primary bg-opacity-50 rounded-full hover:bg-opacity-70 transition-all duration-200;
+            }
+            .question-slider-container::-webkit-scrollbar-thumb:hover {
+                @apply bg-opacity-80;
+            }
+            /* 单选按钮选中样式 - 只改变当前选中的选项颜色 */
+            .radio-option {
+                @apply w-8 h-8 rounded-full border-2 border-neutral flex items-center justify-center cursor-pointer hover:border-primary transition-all;
+            }
+            input[type="radio"]:checked + .radio-option {
+                @apply bg-primary text-white border-primary;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen font-sans text-neutral-dark">
+    <!-- 使用提示弹窗 -->
+    <div id="usage-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden">
+            <div class="p-6 md:p-8">
+                <div class="flex justify-between items-start mb-6">
+                    <h2 class="text-2xl font-bold text-primary">欢迎使用AI旅游助手</h2>
+                    <button id="close-modal" onclick="document.getElementById('usage-modal').style.display='none';" class="text-neutral hover:text-neutral-dark transition-colors">
+                        <i class="fa fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="prose max-w-none">
+                    <p class="mb-4">请代入以下情境：</p>
+                    <p class="mb-4">你通过某在线旅游平台预订了一家民宿，独自来到一座陌生的城市。入住后，周围的一切都很陌生，想要分享旅途中的心情、寻求帮助，却不知道可以找谁。早在预订行程时，你就使用过该在线旅游平台推出的AI旅游助手。你发现，它能快速准确地回答你的问题，帮你解决各种实际问题。当你需要查询周边景点信息、规划每日游览路线、了解当地天气、获取历史文化背景和特色美食攻略时，AI旅游助手总能即时提供详尽可靠的旅行建议。在你遇到实际问题时，如语言沟通障碍等，它也能迅速给出具体的解决方案。从行前规划到入住体验，你感受到AI旅游助手像一位随时在线的高效私人管家，总能帮你解决旅游中的实际问题。</p>
+                    <div class="bg-green-50 border-l-4 border-primary p-4 my-4">
+                        <h4 class="font-semibold text-primary mb-1">使用说明：</h4>
+                        <ol class="list-decimal list-inside space-y-1">
+                            <li>首先进行左侧的AI对话，点击推荐问题完成与AI的对话并认真体验</li>
+                            <li>然后完成右侧的问卷部分，需完成所有问题才能提交</li>
+                        </ol>
+                    </div>
+                    <div class="bg-yellow-50 border-l-4 border-warning p-4">
+                        <h4 class="font-semibold text-warning mb-1">⚠️ 作答提示：</h4>
+                        <p>所有题项，均请基于您刚才阅读的情境和与AI的对话体验来想象并回答（而非个人日常经验）。所有题目都没有对错之分，但随意作答的问卷将不采纳。</p>
+                    </div>
+                </div>
+                <div class="mt-8 text-center">
+                    <button id="understand-button" onclick="document.getElementById('usage-modal').style.display='none';" class="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium">
+                        已了解
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- 头部 -->
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-primary mb-2 text-shadow">AI旅游信息工具小助手</h1>
+            <p class="text-neutral max-w-2xl mx-auto mb-4">
+                您好！我是您的AI旅游信息工具小助手。请点击下方推荐问题，开始我们的对话吧！
+            </p>
+        </header>
+
+        <!-- 主要内容 -->
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- 左侧：AI对话模块 -->
+            <main class="bg-white rounded-xl shadow-lg overflow-hidden flex-1">
+            <!-- 对话区域 -->
+            <div id="chat-container" class="h-[60vh] md:h-[70vh] overflow-y-auto p-4 space-y-4">
+                <!-- AI欢迎消息 -->
+                <div class="flex items-start gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white">
+                        <i class="fa fa-robot"></i>
+                    </div>
+                    <div class="message-bubble ai-bubble">
+                        <div class="message-tail ai-tail"></div>
+                        <p>你好！我是你的AI旅游信息工具小助手。请问有什么可以帮助你的？你可以询问各地的景点、美食推荐、天气情况、文化习俗等。</p>
+                    </div>
+                </div>
+
+                <!-- 动态消息将在这里生成 -->
+            </div>
+
+            <!-- 推荐问题区域 -->
+            <div class="p-4 border-t border-neutral-light bg-neutral-light">
+                <h3 class="text-sm font-medium text-neutral mb-3">推荐问题：</h3>
+                <div id="question-tags" class="flex flex-wrap gap-2 mb-4">
+                    <!-- 第一个推荐问题默认显示 -->
+                    <button class="question-tag" data-question-index="0">大理古城附近有什么必去的景点或者网红打卡点吗？</button>
+                    <!-- 其他问题将按顺序动态显示 -->
+                </div>
+
+                <!-- 图片上传区域 -->
+                <div id="photo-upload-container" class="hidden mb-4">
+                    <div id="photo-upload-area" class="photo-upload-area">
+                        <input type="file" id="photo-input" class="hidden" accept="image/*">
+                        <i class="fa fa-camera text-3xl text-neutral mb-2"></i>
+                        <p class="text-neutral-dark mb-1">点击或拖拽上传图片</p>
+                        <p class="text-sm text-neutral">支持 JPG、PNG 格式，最大 5MB</p>
+                    </div>
+                    <div id="preview-container" class="hidden mt-3">
+                        <img id="image-preview" class="max-h-40 mx-auto rounded-lg" alt="预览图片">
+                        <div class="flex justify-center mt-2">
+                            <button id="confirm-upload" class="px-4 py-2 bg-primary text-white rounded-lg mr-2">确认上传</button>
+                            <button id="cancel-upload" class="px-4 py-2 bg-neutral text-white rounded-lg">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入区域 -->
+                <div class="relative">
+                    <input type="text" id="user-input" class="w-full border border-neutral-light rounded-full py-3 px-5 pr-12 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="输入您的问题...">
+                    <button id="send-button" class="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white">
+                        <i class="fa fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+
+
+            </main>
+
+            <!-- 右侧：问卷模块 -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden lg:w-2/5 xl:w-1/3">
+                <div class="p-6">
+                    <h2 class="text-2xl font-bold text-primary mb-6 text-center">用户体验评价问卷</h2>
+                    
+                    <!-- 问卷状态提示 -->
+                    <div id="feedback-status" class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                        <i class="fa fa-info-circle text-yellow-600 mr-2"></i>
+                        <span class="text-yellow-800">请先完成左侧对话后，再完成下述问卷填写</span>
+                    </div>
+                    
+                    <!-- 问卷滑块容器 -->
+                    <div class="question-slider-container" style="max-height: 60vh; overflow-y: auto; padding-right: 8px;">
+                    <form id="feedback-form" class="space-y-6">
+                        <!-- 第一部分：1-3题 Likert 7点计分 -->
+                        <div class="space-y-6">
+                            <!-- 问题1 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">1. 旅行中在我遇到问题时，AI能为我提供所需的信息与解答。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">完全不同意</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q1" value="1" id="q1-1" class="hidden peer">
+                                        <label for="q1-1" class="radio-option">1</label>
+                                        <input type="radio" name="q1" value="2" id="q1-2" class="hidden">
+                                        <label for="q1-2" class="radio-option">2</label>
+                                        <input type="radio" name="q1" value="3" id="q1-3" class="hidden">
+                                        <label for="q1-3" class="radio-option">3</label>
+                                        <input type="radio" name="q1" value="4" id="q1-4" class="hidden">
+                                        <label for="q1-4" class="radio-option">4</label>
+                                        <input type="radio" name="q1" value="5" id="q1-5" class="hidden">
+                                        <label for="q1-5" class="radio-option">5</label>
+                                        <input type="radio" name="q1" value="6" id="q1-6" class="hidden">
+                                        <label for="q1-6" class="radio-option">6</label>
+                                        <input type="radio" name="q1" value="7" id="q1-7" class="hidden">
+                                        <label for="q1-7" class="radio-option">7</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">完全同意</span>
+                                </div>
+                            </div>
+
+                            <!-- 问题2 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">2. 我能够从AI那里获得实用的旅行攻略与决策建议。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">完全不同意</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q2" value="1" id="q2-1" class="hidden peer">
+                                        <label for="q2-1" class="radio-option">1</label>
+                                        <input type="radio" name="q2" value="2" id="q2-2" class="hidden">
+                                        <label for="q2-2" class="radio-option">2</label>
+                                        <input type="radio" name="q2" value="3" id="q2-3" class="hidden">
+                                        <label for="q2-3" class="radio-option">3</label>
+                                        <input type="radio" name="q2" value="4" id="q2-4" class="hidden">
+                                        <label for="q2-4" class="radio-option">4</label>
+                                        <input type="radio" name="q2" value="5" id="q2-5" class="hidden">
+                                        <label for="q2-5" class="radio-option">5</label>
+                                        <input type="radio" name="q2" value="6" id="q2-6" class="hidden">
+                                        <label for="q2-6" class="radio-option">6</label>
+                                        <input type="radio" name="q2" value="7" id="q2-7" class="hidden">
+                                        <label for="q2-7" class="radio-option">7</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">完全同意</span>
+                                </div>
+                            </div>
+
+                            <!-- 问题3 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">3. AI 能切实帮我解决旅行中的实际问题。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">完全不同意</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q3" value="1" id="q3-1" class="hidden peer">
+                                        <label for="q3-1" class="radio-option">1</label>
+                                        <input type="radio" name="q3" value="2" id="q3-2" class="hidden">
+                                        <label for="q3-2" class="radio-option">2</label>
+                                        <input type="radio" name="q3" value="3" id="q3-3" class="hidden">
+                                        <label for="q3-3" class="radio-option">3</label>
+                                        <input type="radio" name="q3" value="4" id="q3-4" class="hidden">
+                                        <label for="q3-4" class="radio-option">4</label>
+                                        <input type="radio" name="q3" value="5" id="q3-5" class="hidden">
+                                        <label for="q3-5" class="radio-option">5</label>
+                                        <input type="radio" name="q3" value="6" id="q3-6" class="hidden">
+                                        <label for="q3-6" class="radio-option">6</label>
+                                        <input type="radio" name="q3" value="7" id="q3-7" class="hidden">
+                                        <label for="q3-7" class="radio-option">7</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">完全同意</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 分隔线 -->
+                        <div class="border-t border-gray-200 pt-6">
+                            <h3 class="text-lg font-semibold text-neutral-dark mb-4">AI支持下的社交行为倾向</h3>
+                        </div>
+
+                        <!-- 第二部分：4-7题 Likert 5点计分（符合度） -->
+                        <div class="space-y-4">
+                            <!-- 问题4 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">4. 在民宿住宿期间，我不想和房东、其他住客或本地人互动交流。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">非常不符合</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q4" value="1" id="q4-1" class="hidden peer">
+                                        <label for="q4-1" class="radio-option">1</label>
+                                        <input type="radio" name="q4" value="2" id="q4-2" class="hidden">
+                                        <label for="q4-2" class="radio-option">2</label>
+                                        <input type="radio" name="q4" value="3" id="q4-3" class="hidden">
+                                        <label for="q4-3" class="radio-option">3</label>
+                                        <input type="radio" name="q4" value="4" id="q4-4" class="hidden">
+                                        <label for="q4-4" class="radio-option">4</label>
+                                        <input type="radio" name="q4" value="5" id="q4-5" class="hidden">
+                                        <label for="q4-5" class="radio-option">5</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">非常符合</span>
+                                </div>
+                            </div>
+
+                            <!-- 问题5 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">5. 我会主动回避民宿里的集体活动（如公共区域闲聊、聚餐）。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">非常不符合</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q5" value="1" id="q5-1" class="hidden peer">
+                                        <label for="q5-1" class="radio-option">1</label>
+                                        <input type="radio" name="q5" value="2" id="q5-2" class="hidden">
+                                        <label for="q5-2" class="radio-option">2</label>
+                                        <input type="radio" name="q5" value="3" id="q5-3" class="hidden">
+                                        <label for="q5-3" class="radio-option">3</label>
+                                        <input type="radio" name="q5" value="4" id="q5-4" class="hidden">
+                                        <label for="q5-4" class="radio-option">4</label>
+                                        <input type="radio" name="q5" value="5" id="q5-5" class="hidden">
+                                        <label for="q5-5" class="radio-option">5</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">非常符合</span>
+                                </div>
+                            </div>
+
+                            <!-- 问题6 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">6. 在民宿公共区域时，我总想躲着别人，不跟他们一起交流互动。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">非常不符合</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q6" value="1" id="q6-1" class="hidden peer">
+                                        <label for="q6-1" class="radio-option">1</label>
+                                        <input type="radio" name="q6" value="2" id="q6-2" class="hidden">
+                                        <label for="q6-2" class="radio-option">2</label>
+                                        <input type="radio" name="q6" value="3" id="q6-3" class="hidden">
+                                        <label for="q6-3" class="radio-option">3</label>
+                                        <input type="radio" name="q6" value="4" id="q6-4" class="hidden">
+                                        <label for="q6-4" class="radio-option">4</label>
+                                        <input type="radio" name="q6" value="5" id="q6-5" class="hidden">
+                                        <label for="q6-5" class="radio-option">5</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">非常符合</span>
+                                </div>
+                            </div>
+
+                            <!-- 问题7 -->
+                            <div class="space-y-2">
+                                <label class="block text-neutral-dark font-medium">7. 我会拒绝民宿里别人的邀请（如结伴游玩等），因为我更想自己一个人待着。</label>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-neutral">非常不符合</span>
+                                    <div class="flex space-x-2">
+                                        <input type="radio" name="q7" value="1" id="q7-1" class="hidden peer">
+                                        <label for="q7-1" class="radio-option">1</label>
+                                        <input type="radio" name="q7" value="2" id="q7-2" class="hidden">
+                                        <label for="q7-2" class="radio-option">2</label>
+                                        <input type="radio" name="q7" value="3" id="q7-3" class="hidden">
+                                        <label for="q7-3" class="radio-option">3</label>
+                                        <input type="radio" name="q7" value="4" id="q7-4" class="hidden">
+                                        <label for="q7-4" class="radio-option">4</label>
+                                        <input type="radio" name="q7" value="5" id="q7-5" class="hidden">
+                                        <label for="q7-5" class="radio-option">5</label>
+                                    </div>
+                                    <span class="text-sm text-neutral">非常符合</span>
+                                </div>
+                            </div>
+                        </div>
+    
+                    </form>
+                    </div>
+                    <!-- 提交按钮 - 初始禁用状态 -->
+                    <button type="submit" id="submit-button" class="w-full bg-gray-400 text-white py-3 px-6 rounded-lg font-medium cursor-not-allowed shadow-md mt-6" disabled>
+                        <i class="fa fa-paper-plane mr-2"></i>
+                        提交评价
+                    </button>
+                    <!-- 提交结果显示区域 -->
+                    <div id="submit-result" class="hidden mt-6 p-4 rounded-lg text-center"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <footer class="mt-6 text-center text-neutral text-sm">
+            <p>© 2026 AI旅游信息工具小助手 | 您的旅游工具与信息支持助手</p>
+        </footer>
+    </div>
+
+    <script>
+        // 全局变量 - 按顺序展示推荐问题
+        const conversationState = {
+            askedQuestions: new Set(),
+            totalQuestions: 6, // 按顺序展示的推荐问题总数
+            currentQuestionIndex: 0, // 当前应该显示的问题索引
+            isTyping: false,
+            isPhotoUploadMode: false,
+            conversationStartTime: null, // 对话开始时间
+            conversationEndTime: null, // 对话结束时间
+            isConversationComplete: false, // 对话是否完成
+            lastQuestionTime: 0, // 上一次发送问题的时间戳
+            minQuestionInterval: 5000 // 最小问题间隔时间（毫秒）
+        };
+
+        // 对话脚本数据 - 按顺序展示的推荐问题
+        const dialogueScript = [
+            {
+                question: "大理古城附近有什么必去的景点或者网红打卡点吗？",
+                answer: `为您整理大理古城及周边的核心打卡信息：\n1.古城核心区：人民路、洋人街为商业人文地标，五华楼可俯瞰古城全景；\n2.洱海沿岸：才村码头（日出观测点）、龙龛码头（网红 S 弯）、磻溪村（日落步道），均为骑行可达；\n3. 小众推荐：寂照庵，主打多肉景观与素斋体验，游客密度较低。`,
+                type: "景点美食推荐"
+            },
+            {
+                question: "那大理当地有什么特色美食和值得带的特产呀？",
+                answer: `为您提供分场景的美食与特产信息：\n【现吃推荐】白族酸辣鱼、黄焖鸡、烤乳扇、凉鸡米线、水性杨花，推荐前往古城白族土菜馆体验；\n【伴手礼推荐】雕梅酒 / 雕梅果、洱源乳扇、普洱茶、白族扎染、现烤鲜花饼，周城手工扎染与老字号鲜花饼为优选。`,
+                type: "游船路线"
+            },
+            {
+                question: "大理古城这几天天气怎么样？适合穿什么衣服？",
+                answer: `根据实时气象数据，大理古城未来 3 天以晴天为主，气温区间 18-25℃，昼夜温差约 8℃。\n【穿搭建议】白天气温较高，建议穿薄款长袖 / 衬衫；早晚气温偏低，需搭配可脱卸薄外套。同时，紫外线指数偏高，建议携带帽子、墨镜与高倍防晒，古城石板路建议搭配平底鞋。`,
+                type: "天气穿衣"
+            },
+            {
+                question: "我想了解一下大理古城有什么历史文化背景或者当地的民俗风俗？",
+                answer: `为您整理大理古城的历史与民俗信息：\n【历史背景】始建于明洪武年间（距今约 600 年），曾为南诏国、大理国都城，是南方丝绸之路的重要节点，建筑融合白族 “三坊一照壁” 特色；\n【民俗文化】白族三月街（物资交流与民族盛会）、火把节为核心传统节日；白族三道茶（一苦二甜三回味）为特色待客礼仪，部分民宿与文化体验馆可提供体验服务。`,
+                type: "民俗文化"
+            },
+            {
+                question: "我刚才在古城里看到有人卖扎染布，想问问大理扎染的特色和哪里能买到正宗的？",
+                answer: `大理扎染为国家级非物质文化遗产，以周城白族扎染为代表，采用板蓝根等天然植物染料，纹样以蝴蝶、山茶、白族几何纹为主，手工制品具有自然晕染边缘。\n【购买渠道推荐】\n1.周城璞真扎染博物馆，可参观制作流程并购买手工制品；\n2. 古城非遗认证店铺，购买时可通过自然晕染纹理辨别手工制品与机器仿品。`,
+                type: "婚纱摄影"
+            },
+            {
+                question: "我在民宿院子里看到了这个植物，结了好多小果子，想问问这是什么呀？",
+                answer: `根据图片识别，该植物为棕榈科棕榈属的棕榈树（俗称棕树），图中灰白色的果实为其核果，即棕榈果（棕榈子）。\n【关键信息：】\n1. 形态特征：果实成熟后会由青绿色转为蓝黑色，具有一定的辨识度；\n2. 实用价值：其纤维可制作绳索、蓑衣，嫩叶可加工成扇子；\n3. 应用场景：棕榈树在大理地区适应性强，常作为庭院、民宿的景观树种，在南方地区分布广泛。`,
+                type: "植物识别",
+                hasImage: false
+            }
+        ];
+
+        // DOM元素
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const questionTags = document.getElementById('question-tags');
+        const confirmationCode = document.getElementById('confirmation-code');
+        const codeDisplay = document.getElementById('code-display');
+        const copyCodeButton = document.getElementById('copy-code-button');
+        const resetConversation = document.getElementById('reset-conversation');
+        const photoUploadContainer = document.getElementById('photo-upload-container');
+        const photoUploadArea = document.getElementById('photo-upload-area');
+        const photoInput = document.getElementById('photo-input');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const confirmUpload = document.getElementById('confirm-upload');
+        const cancelUpload = document.getElementById('cancel-upload');
+
+        // 初始化
+        function init() {
+                        
+            // 绑定事件
+            sendButton.addEventListener('click', handleSendMessage);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleSendMessage();
+            });
+            
+            // 绑定推荐问题标签点击事件 - 按顺序处理
+            document.querySelectorAll('.question-tag').forEach(tag => {
+                tag.addEventListener('click', () => {
+                    // 检查点击频率
+                    const currentTime = Date.now();
+                    const timeSinceLastQuestion = currentTime - conversationState.lastQuestionTime;
+                    
+                    if (timeSinceLastQuestion < conversationState.minQuestionInterval && conversationState.lastQuestionTime > 0) {
+                        // 显示提示信息
+                        showToastMessage('您发送问题太快，请稍后再试', 'warning');
+                        return;
+                    }
+                    
+                    if (!conversationState.isTyping && !tag.classList.contains('asked')) {
+                        const questionIndex = parseInt(tag.getAttribute('data-question-index'));
+                        const question = dialogueScript[questionIndex].question;
+                        
+                        // 更新最后发送问题的时间
+                        conversationState.lastQuestionTime = currentTime;
+                        
+                        // 标记当前问题为已问
+                        let userImageUrl = null;
+                        
+                        // 对于植物识别问题（最后一个问题），使用参考图片
+                        if (questionIndex === 5) { // 植物识别问题的索引
+                            userImageUrl = "https://p26-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/6d770151f3b5445e9ff457bedf1cb14e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260427234035A7C6BECBD2A01CFB0ABB&rrcfp=8a172a1a&x-expires=1777909235&x-signature=gXLtGL4dOPiGVXhFtWFvuNYgxbA%3D";
+                        }
+                        
+                        handleUserMessage(question, questionIndex, userImageUrl);
+                        tag.classList.add('asked');
+                        
+                        // 隐藏当前问题标签
+                        tag.classList.add('hidden');
+                        
+                        // 显示下一个推荐问题（如果还有）
+                        if (questionIndex < conversationState.totalQuestions - 1) {
+                            conversationState.currentQuestionIndex = questionIndex + 1;
+                            showNextQuestion();
+                        }
+                    }
+                });
+            });
+            
+            // 图片上传相关事件
+            photoUploadArea.addEventListener('click', () => photoInput.click());
+            photoUploadArea.addEventListener('dragover', handleDragOver);
+            photoUploadArea.addEventListener('dragleave', handleDragLeave);
+            photoUploadArea.addEventListener('drop', handleDrop);
+            photoInput.addEventListener('change', handleFileSelect);
+            confirmUpload.addEventListener('click', handleConfirmUpload);
+            cancelUpload.addEventListener('click', handleCancelUpload);
+            
+            // 滚动到底部
+            scrollToBottom();
+        }
+
+        // 处理发送消息
+        function handleSendMessage() {
+            const message = userInput.value.trim();
+            if (message && !conversationState.isTyping) {
+                handleUserMessage(message);
+                userInput.value = '';
+            }
+        }
+
+        // 处理用户消息 - 按顺序展示推荐问题
+        function handleUserMessage(message, questionIndex, userImageUrl) {
+            // 记录对话开始时间（如果是第一个推荐问题）
+            if (conversationState.askedQuestions.size === 0 && questionIndex !== undefined) {
+                conversationState.conversationStartTime = new Date();
+                console.log('对话开始时间:', conversationState.conversationStartTime);
+            }
+            
+            // 添加用户消息到聊天区域
+            addUserMessage(message, userImageUrl);
+            
+            // 只有推荐问题才标记为已问并计入完成数量
+            if (questionIndex !== undefined) {
+                conversationState.askedQuestions.add(questionIndex);
+                console.log('已问推荐问题数量:', conversationState.askedQuestions.size);
+            }
+            
+            // 显示AI正在输入
+            showTypingIndicator();
+            
+            // 延迟回复，模拟AI思考
+            setTimeout(() => {
+                // 隐藏输入指示器
+                hideTypingIndicator();
+                
+                // 获取对应的回答
+                const matchingResponse = dialogueScript[questionIndex];
+                
+                if (matchingResponse) {
+                    // 添加AI回复
+                    addAIMessage(matchingResponse.answer);
+                    
+                    // 检查是否完成所有推荐问题
+                    checkCompletion();
+                } else {
+                    // 通用回复
+                    addAIMessage("感谢您的提问！我是一个专注于旅游信息的AI助手。请问您还有什么想了解的吗？");
+                }
+            }, 1500);
+        }
+
+        // 添加用户消息
+        function addUserMessage(message, imageUrl) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'flex items-start gap-3 justify-end mb-4';
+            
+            // 获取当前时间
+            const currentTime = getCurrentTime();
+            
+            let content = `
+                <div class="message-bubble user-bubble">
+                    <div class="message-tail user-tail"></div>
+                    <p>${message}</p>
+            `;
+            
+            // 如果有图片，添加图片
+            if (imageUrl) {
+                content += `<div class="mt-3"><img src="${imageUrl}" alt="用户提供的图片" class="rounded-lg max-w-full max-h-60 object-cover"></div>`;
+            }
+            
+            content += `</div>
+                <div class="flex flex-col items-center gap-1">
+                    <div class="w-10 h-10 rounded-full bg-secondary flex-shrink-0 flex items-center justify-center text-white">
+                        <i class="fa fa-user"></i>
+                    </div>
+                    <span class="text-xs text-neutral">${currentTime}</span>
+                </div>`;
+                
+            messageElement.innerHTML = content;
+            
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+            
+            // 添加动画效果
+            gsap.from(messageElement, {
+                x: 50,
+                opacity: 0,
+                duration: 0.3,
+                ease: "power2.out"
+            });
+        }
+
+        // 添加AI消息
+        function addAIMessage(message, imageUrl) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'flex items-start gap-3 mb-4';
+            
+            // 获取当前时间
+            const currentTime = getCurrentTime();
+            
+            let content = `
+                <div class="flex flex-col items-center gap-1">
+                    <div class="w-10 h-10 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white">
+                        <i class="fa fa-robot"></i>
+                    </div>
+                    <span class="text-xs text-neutral">${currentTime}</span>
+                </div>
+                <div class="message-bubble ai-bubble">
+                    <div class="message-tail ai-tail"></div>
+                    <p>${message.replace(/\n/g, '<br>')}</p>
+            `;
+            
+            // 如果有图片，添加图片
+            if (imageUrl) {
+                content += `<div class="mt-3"><img src="${imageUrl}" alt="AI提供的图片" class="rounded-lg max-w-full max-h-60 object-cover"></div>`;
+            }
+            
+            content += `</div>`;
+            messageElement.innerHTML = content;
+            
+            chatContainer.appendChild(messageElement);
+            scrollToBottom();
+            
+            // 添加动画效果
+            gsap.from(messageElement, {
+                x: -50,
+                opacity: 0,
+                duration: 0.3,
+                ease: "power2.out"
+            });
+        }
+
+        // 显示AI正在输入指示器
+        function showTypingIndicator() {
+            conversationState.isTyping = true;
+            
+            const typingElement = document.createElement('div');
+            typingElement.id = 'typing-indicator';
+            typingElement.className = 'flex items-start gap-3 mb-4';
+            typingElement.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-primary flex-shrink-0 flex items-center justify-center text-white">
+                    <i class="fa fa-robot"></i>
+                </div>
+                <div class="message-bubble ai-bubble">
+                    <div class="message-tail ai-tail"></div>
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(typingElement);
+            scrollToBottom();
+        }
+
+        // 隐藏AI正在输入指示器
+        function hideTypingIndicator() {
+            conversationState.isTyping = false;
+            const typingElement = document.getElementById('typing-indicator');
+            if (typingElement) {
+                typingElement.remove();
+            }
+        }
+
+        // 检查是否完成所有推荐问题
+        function checkCompletion() {
+            // 只有推荐问题才计入完成数量
+            if (conversationState.askedQuestions.size === conversationState.totalQuestions) {
+                // 记录对话结束时间
+                conversationState.conversationEndTime = new Date();
+                conversationState.isConversationComplete = true;
+                
+                // 禁用输入框和发送按钮
+                disableInputArea();
+                
+                console.log('对话已完成，现在启用问卷...');
+                
+                // 延迟一点时间启用问卷，确保动画完成
+                setTimeout(() => {
+                    enableFeedbackForm();
+                    
+                    // 更新问卷状态提示
+                    const statusElement = document.getElementById('feedback-status');
+                    if (statusElement) {
+                        statusElement.className = 'mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-center';
+                        statusElement.innerHTML = `
+                            <i class="fa fa-check-circle text-green-600 mr-2"></i>
+                            <span class="text-green-800">对话已完成，现在可以开始评价</span>
+                        `;
+                    }
+                }, 300);
+            }
+        }
+
+        // 禁用输入区域
+        function disableInputArea() {
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            
+            userInput.disabled = true;
+            userInput.placeholder = '对话完成，感谢您的参与！';
+            userInput.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            sendButton.disabled = true;
+            sendButton.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            console.log('输入区域已禁用');
+        }
+
+        // 获取当前时间
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 显示确认码模态框 - 全新实现
+        function showCompletionMessage(feedbackData) {
+            console.log('🎯 生成确认码并显示模态框...');
+            
+            try {
+                // 根据问卷数据生成确认码
+                const confirmationCode = generateConfirmationCode(feedbackData);
+                console.log('生成的确认码:', confirmationCode);
+                
+                // 创建模态框元素
+                const modalElement = document.createElement('div');
+                modalElement.id = 'confirmation-modal';
+                modalElement.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                modalElement.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto">
+                        <!-- 关闭按钮 -->
+                        <button onclick="closeModal()" class="absolute top-4 right-4 text-neutral hover:text-danger transition-colors">
+                            <i class="fa fa-times text-xl"></i>
+                        </button>
+                        
+                        <!-- 模态框内容 -->
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-6">
+                                <i class="fa fa-check text-white text-2xl"></i>
+                            </div>
+                            
+                            <h3 class="text-2xl font-bold text-neutral-dark mb-4">🎉 问卷提交成功！</h3>
+                            <p class="text-neutral mb-6">感谢您的评价！以下是您的专属确认码：</p>
+                            
+                            <!-- 确认码显示 -->
+                            <div class="bg-primary bg-opacity-10 text-primary text-lg font-mono p-4 rounded-lg mb-6 w-full max-w-full break-all text-left max-h-32 overflow-y-auto">
+                                ${confirmationCode}
+                            </div>
+                                                      
+                            <!-- 复制按钮 -->
+                            <div class="mt-4">
+                                <button onclick="copyCodeToClipboard('${confirmationCode}')" class="w-full bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-green-600 transition-all shadow-md">
+                                    <i class="fa fa-copy mr-2"></i>
+                                    复制确认码
+                                </button>
+                            </div>
+                            
+                            <p class="text-sm text-neutral mt-4">请保存此确认码，用于后续使用</p>
+                        </div>
+                    </div>
+                `;
+                
+                // 添加到页面
+                document.body.appendChild(modalElement);
+                
+                // 添加动画效果
+                gsap.from(modalElement.querySelector('.bg-white'), {
+                    scale: 0.8,
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: "back.out(1.7)"
+                });
+                
+            } catch (error) {
+                console.error('显示确认码模态框时发生错误:', error);
+            }
+        }
+        
+        // 关闭模态框
+        window.closeModal = function() {
+            const modal = document.getElementById('confirmation-modal');
+            if (modal) {
+                gsap.to(modal, {
+                    opacity: 0,
+                    duration: 0.2,
+                    onComplete: () => {
+                        modal.remove();
+                    }
+                });
+            }
+        };
+        
+        // CBC加密：密钥和IV硬编码
+        const SECRET_KEY = "travel-assistant-2026-secret-key"; // 长度需满足AES-256 (32字节)
+        const SECRET_IV = "random-iv-16byte";               // 16字节 IV
+        
+        // AES-CBC加密函数
+        function encryptAES(data) {
+            try {
+                const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
+                const iv = CryptoJS.enc.Utf8.parse(SECRET_IV);
+                
+                const encrypted = CryptoJS.AES.encrypt(
+                    data,
+                    key,
+                    {
+                        iv: iv,
+                        mode: CryptoJS.mode.CBC,
+                        padding: CryptoJS.pad.Pkcs7
+                    }
+                );
+                return encrypted.toString();
+            } catch (error) {
+                console.error('加密失败:', error);
+                return '';
+            }
+        }
+        
+        // AES-CBC解密函数
+        function decryptAES(encryptedData) {
+            try {
+                const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
+                const iv = CryptoJS.enc.Utf8.parse(SECRET_IV);
+                
+                const decrypted = CryptoJS.AES.decrypt(
+                    encryptedData,
+                    key,
+                    {
+                        iv: iv,
+                        mode: CryptoJS.mode.CBC,
+                        padding: CryptoJS.pad.Pkcs7
+                    }
+                );
+                return decrypted.toString(CryptoJS.enc.Utf8);
+            } catch (error) {
+                console.error('解密失败:', error);
+                return null;
+            }
+        }
+
+        // 根据问卷数据生成确认码 - 新格式：反映每个题项选择的数字
+        function generateConfirmationCode(feedbackData) {
+            console.log('🔢 根据问卷数据生成确认码...');
+            
+            // 基础确认码
+            let baseCode = 'TOOL-SOLUTION-2026-INFORMATION-ASSIST';
+            
+            // 添加问卷答案编码
+            let answersCode = '';
+            const questionCount = 7; // 总共7个问题
+            
+            // 检查feedbackData是否有效
+            if (!feedbackData || typeof feedbackData !== 'object') {
+                console.error('❌ feedbackData无效:', feedbackData);
+                throw new Error('问卷数据无效');
+            }
+            
+            console.log('📊 问卷数据内容:', JSON.stringify(feedbackData, null, 2));
+            
+            // 生成答案编码
+            for (let i = 1; i <= questionCount; i++) {
+                const questionKey = `q${i}`;
+                const answer = feedbackData[questionKey];
+                
+                console.log(`🔍 问题 ${i} (${questionKey}) 的答案:`, answer);
+                
+                if (answer === undefined || answer === null || answer === '') {
+                    console.warn(`⚠️ 问题 ${i} 没有答案，使用默认值 1`);
+                    // 使用默认值 1 作为后备
+                    answersCode += `${String.fromCharCode(64 + i)}1`;
+                } else {
+                    // 使用字母A-T代表20个问题，后面跟用户选择的数字
+                    const questionLetter = String.fromCharCode(64 + i); // A=65, B=66, ..., T=84
+                    answersCode += `${questionLetter}${answer}`;
+                }
+            }
+            
+            // 组合完整的确认码明文
+            const plainCode = `${baseCode}-${answersCode}-END`;
+            console.log('📝 生成的明文确认码:', plainCode);
+            
+            // 使用AES-CBC加密确认码
+            const encryptedCode = encryptAES(plainCode);
+            console.log('🔒 加密后的确认码:', encryptedCode);
+            
+            // 验证确认码格式
+            if (plainCode.length < 50) { // 一个合理的最小长度
+                console.warn('⚠️ 生成的确认码可能不完整:', plainCode);
+            }
+            
+            // 返回加密后的确认码
+            return encryptedCode;
+        }
+        
+        // 简单的哈希函数
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32bit integer
+            }
+            return Math.abs(hash);
+        }
+
+        
+        
+        // 禁用问卷题目
+        function disableFeedbackForm() {
+            console.log('🔒 禁用问卷题目...');
+            
+            try {
+                // 获取所有问题容器
+                const questionContainers = document.querySelectorAll('#feedback-form > div > div');
+                
+                // 为每个问题容器添加禁用类
+                questionContainers.forEach(container => {
+                    container.classList.add('question-disabled');
+                    
+                    // 禁用所有radio按钮
+                    const radioButtons = container.querySelectorAll('input[type="radio"]');
+                    radioButtons.forEach(radio => {
+                        radio.disabled = true;
+                    });
+                });
+                
+                console.log('✅ 问卷已成功禁用！');
+            } catch (error) {
+                console.error('❌ 禁用问卷时发生错误:', error);
+            }
+        }
+
+        // 启用问卷 - 全新实现
+        function enableFeedbackForm() {
+            console.log('🔄 开始启用问卷...');
+            
+            try {
+                // 获取所有问题容器
+                const questionContainers = document.querySelectorAll('#feedback-form > div > div');
+                
+                // 移除禁用状态
+                questionContainers.forEach(container => {
+                    container.classList.remove('question-disabled');
+                    
+                    // 启用所有radio按钮
+                    const radioButtons = container.querySelectorAll('input[type="radio"]');
+                    radioButtons.forEach(radio => {
+                        radio.disabled = false;
+                    });
+                });
+                
+                // 重新绑定表单提交事件
+                document.getElementById('feedback-form').addEventListener('submit', handleFeedbackSubmit);
+                
+                // 设置问卷回答监控，实时检查是否所有问题都已回答
+                setupQuestionMonitoring();
+                
+                console.log('✅ 问卷已成功启用！');
+                
+                // 添加动画效果
+                gsap.from('#feedback-form', {
+                    opacity: 0,
+                    y: 20,
+                    duration: 0.5,
+                    ease: "power2.out"
+                });
+                
+            } catch (error) {
+                console.error('❌ 启用问卷时发生错误:', error);
+            }
+        }
+
+      
+        // 全局复制函数，直接在HTML中调用
+        window.copyCodeToClipboard = function(code) {
+            console.log('尝试复制确认码:', code);
+            
+            // 使用现代的 Clipboard API
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(() => {
+                    console.log('Clipboard API 复制成功');
+                    showCopySuccess();
+                }).catch(err => {
+                    console.error('Clipboard API 复制失败:', err);
+                    // 如果 Clipboard API 失败，尝试传统方法
+                    fallbackCopyTextToClipboard(code);
+                });
+            } else {
+                // 如果浏览器不支持 Clipboard API，使用传统方法
+                fallbackCopyTextToClipboard(code);
+            }
+        };
+
+        // 传统的复制方法作为备选
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    console.log('传统方法复制成功！');
+                    showCopySuccess();
+                } else {
+                    console.log('传统方法复制失败');
+                    alert('复制失败，请手动选择确认码进行复制：\n' + text);
+                }
+            } catch (err) {
+                console.error('复制命令执行失败:', err);
+                alert('复制失败，请手动选择确认码进行复制：\n' + text);
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        // 显示复制成功的反馈
+        function showCopySuccess() {
+            // 创建一个临时的成功提示
+            const successElement = document.createElement('div');
+            successElement.className = 'fixed top-4 right-4 bg-success text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            successElement.textContent = '确认码已复制到剪贴板！';
+            document.body.appendChild(successElement);
+            
+            // 添加动画效果
+            gsap.from(successElement, {
+                x: 100,
+                opacity: 0,
+                duration: 0.3,
+                ease: "power2.out"
+            });
+            
+            // 3秒后移除提示
+            setTimeout(() => {
+                gsap.to(successElement, {
+                    x: 100,
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        document.body.removeChild(successElement);
+                    }
+                });
+            }, 3000);
+        }
+        
+
+
+        // 显示下一个推荐问题
+        function showNextQuestion() {
+            const questionTagsContainer = document.getElementById('question-tags');
+            const nextQuestionIndex = conversationState.currentQuestionIndex;
+            
+            if (nextQuestionIndex < conversationState.totalQuestions) {
+                const nextQuestion = dialogueScript[nextQuestionIndex];
+                
+                // 创建新的问题标签
+                const questionTag = document.createElement('button');
+                questionTag.className = 'question-tag';
+                questionTag.setAttribute('data-question-index', nextQuestionIndex);
+                
+                // 对于植物识别问题（最后一个问题），在推荐问题中包含图片
+                if (nextQuestionIndex === 5) {
+                    questionTag.innerHTML = `
+                        <div class="flex items-center">
+                            <span>${nextQuestion.question}</span>
+                            <img src="https://p26-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/6d770151f3b5445e9ff457bedf1cb14e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260427234035A7C6BECBD2A01CFB0ABB&rrcfp=8a172a1a&x-expires=1777909235&x-signature=gXLtGL4dOPiGVXhFtWFvuNYgxbA%3D" alt="植物图片" class="ml-2 w-8 h-8 object-cover rounded-full">
+                        </div>
+                    `;
+                } else {
+                    questionTag.textContent = nextQuestion.question;
+                }
+                
+                // 绑定点击事件
+                questionTag.addEventListener('click', () => {
+                    // 检查点击频率
+                    const currentTime = Date.now();
+                    const timeSinceLastQuestion = currentTime - conversationState.lastQuestionTime;
+                    
+                    if (timeSinceLastQuestion < conversationState.minQuestionInterval && conversationState.lastQuestionTime > 0) {
+                        // 显示提示信息
+                        showToastMessage('您发送问题太快，请稍后再试', 'warning');
+                        return;
+                    }
+                    
+                    if (!conversationState.isTyping && !questionTag.classList.contains('asked')) {
+                        const question = nextQuestion.question;
+                        
+                        // 更新最后发送问题的时间
+                        conversationState.lastQuestionTime = currentTime;
+                        
+                        // 标记当前问题为已问
+                        let userImageUrl = null;
+                        
+                        // 对于植物识别问题（最后一个问题），使用参考图片
+                        if (nextQuestionIndex === 5) { // 植物识别问题的索引
+                            userImageUrl = "https://p26-flow-imagex-download-sign.byteimg.com/tos-cn-i-a9rns2rl98/6d770151f3b5445e9ff457bedf1cb14e.jpg~tplv-a9rns2rl98-24:720:720.jpg?lk3s=8e244e95&rcl=20260427234035A7C6BECBD2A01CFB0ABB&rrcfp=8a172a1a&x-expires=1777909235&x-signature=gXLtGL4dOPiGVXhFtWFvuNYgxbA%3D";
+                        }
+                        
+                        handleUserMessage(question, nextQuestionIndex, userImageUrl);
+                        questionTag.classList.add('asked');
+                        
+                        // 隐藏当前问题标签
+                        questionTag.classList.add('hidden');
+                        
+                        // 显示下一个推荐问题（如果还有）
+                        if (nextQuestionIndex < conversationState.totalQuestions - 1) {
+                            conversationState.currentQuestionIndex = nextQuestionIndex + 1;
+                            showNextQuestion();
+                        }
+                    }
+                });
+                
+                // 添加到容器并显示动画
+                questionTagsContainer.appendChild(questionTag);
+                gsap.from(questionTag, {
+                    x: -20,
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: "power2.out"
+                });
+            }
+        }
+
+        // 设置问卷回答监控 - 实时检查是否所有问题都已回答，控制提交按钮状态
+        function setupQuestionMonitoring() {
+            console.log('👀 设置问卷回答监控...');
+            
+            // 获取所有的单选按钮
+            const allRadioButtons = document.querySelectorAll('input[type="radio"]');
+            
+            // 为每个单选按钮添加change事件监听器
+            allRadioButtons.forEach(radio => {
+                radio.addEventListener('change', () => {
+                    checkAllQuestionsAnswered();
+                });
+            });
+            
+            // 初始检查一次
+            checkAllQuestionsAnswered();
+        }
+        
+        // 检查所有问题是否都已回答，并更新提交按钮状态
+        function checkAllQuestionsAnswered() {
+            let allAnswered = true;
+            
+            // 检查所有7个问题
+            for (let i = 1; i <= 7; i++) {
+                const questionKey = `q${i}`;
+                const selectedOption = document.querySelector(`input[name="${questionKey}"]:checked`);
+                
+                if (!selectedOption) {
+                    allAnswered = false;
+                    break;
+                }
+            }
+            
+            // 获取提交按钮
+            const submitButton = document.getElementById('submit-button');
+            
+            if (allAnswered) {
+                // 所有问题都已回答，启用提交按钮
+                submitButton.disabled = false;
+                submitButton.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                submitButton.classList.add('bg-primary', 'hover:bg-green-600', 'cursor-pointer');
+                console.log('✅ 所有问题都已回答，提交按钮已启用');
+            } else {
+                // 还有问题未回答，禁用提交按钮
+                submitButton.disabled = true;
+                submitButton.classList.remove('bg-primary', 'hover:bg-green-600', 'cursor-pointer');
+                submitButton.classList.add('bg-gray-400', 'cursor-not-allowed');
+            }
+        }
+
+        // 复制确认码（保留兼容性支持）
+        function copyConfirmationCode() {
+            window.copyCodeToClipboard();
+        }
+
+        // 重置对话 - 按顺序展示推荐问题
+        function resetChat() {
+            console.log('重新开始对话');
+            userInput.placeholder = '请输入您的问题...';
+            // 重置对话状态
+            conversationState.askedQuestions.clear();
+            conversationState.lastQuestionTime = 0;
+            conversationState.currentQuestionIndex = 0;
+            conversationState.isTyping = false;
+            conversationState.isPhotoUploadMode = false;
+            conversationState.conversationStartTime = null;
+            conversationState.conversationEndTime = null;
+            conversationState.isConversationComplete = false;
+
+            // 重置问卷状态
+            disableFeedbackForm();
+            
+            // 重置问卷状态提示
+            const statusElement = document.getElementById('feedback-status');
+            if (statusElement) {
+                statusElement.className = 'mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center';
+                statusElement.innerHTML = `
+                    <i class="fa fa-info-circle text-yellow-600 mr-2"></i>
+                    <span class="text-yellow-800">请先完成左侧对话后，再完成下述问卷填写</span>
+                `;
+            }
+            
+            // 清空聊天区域
+            chatContainer.innerHTML = '';
+            
+            // 清空并重置问题标签容器
+            const questionTagsContainer = document.getElementById('question-tags');
+            questionTagsContainer.innerHTML = '';
+            
+            // 创建第一个推荐问题
+            const firstQuestion = dialogueScript[0];
+            const firstQuestionTag = document.createElement('button');
+            firstQuestionTag.className = 'question-tag';
+            firstQuestionTag.setAttribute('data-question-index', '0');
+            firstQuestionTag.textContent = firstQuestion.question;
+            
+            // 绑定点击事件
+            firstQuestionTag.addEventListener('click', () => {
+                // 检查点击频率
+                const currentTime = Date.now();
+                const timeSinceLastQuestion = currentTime - conversationState.lastQuestionTime;
+                
+                if (timeSinceLastQuestion < conversationState.minQuestionInterval && conversationState.lastQuestionTime > 0) {
+                    // 显示提示信息
+                    showToastMessage('您发送问题太快，请稍后再试', 'warning');
+                    return;
+                }
+                
+                if (!conversationState.isTyping && !firstQuestionTag.classList.contains('asked')) {
+                    const question = firstQuestion.question;
+                    
+                    // 更新最后发送问题的时间
+                    conversationState.lastQuestionTime = currentTime;
+                    
+                    // 标记当前问题为已问
+                    handleUserMessage(question, 0);
+                    firstQuestionTag.classList.add('asked');
+                    
+                    // 隐藏当前问题标签
+                    firstQuestionTag.classList.add('hidden');
+                    
+                    // 显示下一个推荐问题
+                    conversationState.currentQuestionIndex = 1;
+                    showNextQuestion();
+                }
+            });
+            
+            questionTagsContainer.appendChild(firstQuestionTag);
+            
+            // 隐藏图片上传区域
+            photoUploadContainer.classList.add('hidden');
+            previewContainer.classList.add('hidden');
+            
+            // 添加AI欢迎消息
+            setTimeout(() => {
+                const welcomeMessage = `你好！我是你的AI旅游信息工具小助手。请问有什么可以帮助你的？你可以询问各地的景点、美食推荐、天气情况、文化习俗等。`;
+                
+                addAIMessage(welcomeMessage);
+            }, 500);
+        }
+
+        // 处理拖拽文件
+        function handleDragOver(e) {
+            e.preventDefault();
+            photoUploadArea.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            photoUploadArea.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            photoUploadArea.classList.remove('dragover');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        }
+
+        // 处理文件选择
+        function handleFileSelect(e) {
+            if (e.target.files && e.target.files[0]) {
+                handleFile(e.target.files[0]);
+            }
+        }
+
+        // 处理文件
+        function handleFile(file) {
+            // 检查文件类型
+            if (!file.type.match('image.*')) {
+                alert('请上传图片文件！');
+                return;
+            }
+            
+            // 检查文件大小
+            if (file.size > 5 * 1024 * 1024) {
+                alert('图片大小不能超过5MB！');
+                return;
+            }
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreview.src = e.target.result;
+                previewContainer.classList.remove('hidden');
+                photoUploadArea.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 确认上传
+        function handleConfirmUpload() {
+            // 隐藏预览
+            previewContainer.classList.add('hidden');
+            photoUploadArea.classList.remove('hidden');
+            photoUploadContainer.classList.add('hidden');
+            
+            // 处理上传的图片
+            handleUserMessage("我上传了一张东巴文招牌的照片，你能帮我解读一下是什么意思吗？");
+            
+            // 重置文件输入
+            photoInput.value = '';
+            conversationState.isPhotoUploadMode = false;
+        }
+
+        // 取消上传
+        function handleCancelUpload() {
+            previewContainer.classList.add('hidden');
+            photoUploadArea.classList.remove('hidden');
+            photoInput.value = '';
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 处理问卷提交 - 收集所有20个问题的答案
+        function handleFeedbackSubmit(e) {
+            e.preventDefault();
+            
+            console.log('📋 开始处理问卷提交...');
+            
+            // 获取所有20个问题的答案
+            const feedbackData = {
+                timestamp: new Date().toISOString(),
+                conversationDuration: conversationState.conversationEndTime ? 
+                    ((conversationState.conversationEndTime - conversationState.conversationStartTime) / 1000).toFixed(1) + '秒' : 
+                    '未完成对话'
+            };
+            
+            let allQuestionsAnswered = true;
+            
+            // 收集所有7个问题的答案
+            for (let i = 1; i <= 7; i++) {
+                const questionKey = `q${i}`;
+                const selectedOption = document.querySelector(`input[name="${questionKey}"]:checked`);
+                
+                if (selectedOption) {
+                    feedbackData[questionKey] = selectedOption.value;
+                } else {
+                    console.log(`❌ 问题 ${i} 未回答`);
+                    allQuestionsAnswered = false;
+                }
+            }
+            
+            // 验证是否所有问题都已回答
+            if (!allQuestionsAnswered) {
+                console.log('❌ 存在未回答的问题');
+                showSubmitResult('请回答所有7个问题', 'error');
+                return;
+            }
+            
+            console.log('✅ 所有问题都已回答，收集到的答案:', feedbackData);
+            
+            // 直接显示确认码模态框，不显示中间的提交成功信息
+            try {
+                showCompletionMessage(feedbackData);
+                console.log('✅ 确认码模态框已显示');
+            } catch (error) {
+                console.error('❌ 显示确认码模态框时发生错误:', error);
+                showSubmitResult('生成确认码时发生错误，请刷新页面重试', 'error');
+            }
+            
+            // 禁用表单，防止重复提交
+            document.getElementById('feedback-form').querySelectorAll('input, button').forEach(el => {
+                el.disabled = true;
+            });
+        }
+        
+        // 显示提交结果
+        function showSubmitResult(message, type) {
+            const resultDiv = document.getElementById('submit-result');
+            resultDiv.innerHTML = message;
+            
+            if (type === 'success') {
+                resultDiv.className = 'mt-6 p-4 rounded-lg text-center bg-green-100 text-green-700';
+            } else if (type === 'error') {
+                resultDiv.className = 'mt-6 p-4 rounded-lg text-center bg-red-100 text-red-700';
+            }
+            
+            resultDiv.classList.remove('hidden');
+        }
+        
+        // 显示提示消息
+        function showToastMessage(message, type = 'info') {
+            // 创建提示元素
+            const toastElement = document.createElement('div');
+            toastElement.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-lg shadow-lg z-50 max-w-xs text-center';
+            
+            // 根据类型设置样式
+            if (type === 'warning') {
+                toastElement.classList.add('bg-warning', 'text-white');
+            } else if (type === 'error') {
+                toastElement.classList.add('bg-danger', 'text-white');
+            } else if (type === 'success') {
+                toastElement.classList.add('bg-success', 'text-white');
+            } else {
+                toastElement.classList.add('bg-info', 'text-white');
+            }
+            
+            toastElement.textContent = message;
+            
+            // 添加到页面
+            document.body.appendChild(toastElement);
+            
+            // 添加动画效果
+            gsap.from(toastElement, {
+                y: -20,
+                opacity: 0,
+                duration: 0.3,
+                ease: "power2.out"
+            });
+            
+            // 3秒后移除提示
+            setTimeout(() => {
+                gsap.to(toastElement, {
+                    y: -20,
+                    opacity: 0,
+                    duration: 0.3,
+                    ease: "power2.in",
+                    onComplete: () => {
+                        document.body.removeChild(toastElement);
+                    }
+                });
+            }, 3000);
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            init();
+
+            // 页面加载时自动禁用问卷，确保用户在完成对话前无法作答
+            disableFeedbackForm();
+            
+            // 绑定问卷提交事件到表单
+            document.getElementById('feedback-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                handleFeedbackSubmit(e);
+            });
+            
+            // 直接绑定提交按钮点击事件作为双重保险
+            const submitButton = document.getElementById('submit-button');
+            if (submitButton) {
+                submitButton.addEventListener('click', function() {
+                    console.log('🔘 提交按钮被点击');
+                    const form = document.getElementById('feedback-form');
+                    const submitEvent = new Event('submit', { cancelable: true });
+                    form.dispatchEvent(submitEvent);
+                });
+            } else {
+                console.warn('⚠️ 提交按钮未找到');
+            }
+        });
+    </script>
+</body>
+</html>
